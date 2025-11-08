@@ -3,227 +3,164 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>موقع ريان</title>
+  <title>موقع ريان الرسمي</title>
   <style>
-    body {
-      background: linear-gradient(135deg, #001f3f, #0074D9);
-      color: white;
-      font-family: "Cairo", sans-serif;
-      text-align: center;
+    html, body {
       margin: 0;
-      padding: 0;
+      height: 100%;
+      overflow: hidden;
+      background: #0b0e1a;
+      font-family: "Tajawal", sans-serif;
+      direction: rtl;
+      color: #fff;
     }
 
-    h1 {
-      margin: 20px 0;
+    header {
+      position: fixed;
+      top: 0;
+      width: 100%;
+      background: rgba(0, 0, 0, 0.4);
+      padding: 16px;
+      text-align: center;
       font-size: 28px;
-      color: #00FFFF;
-      text-shadow: 0 0 10px #00FFFF, 0 0 20px #0099FF;
+      font-weight: bold;
+      color: #60a5fa;
+      z-index: 10;
+      box-shadow: 0 4px 16px rgba(0,0,0,0.4);
+      backdrop-filter: blur(6px);
+      user-select: none;
+    }
+
+    #controls {
+      position: fixed;
+      top: 14px;
+      right: 14px;
+      z-index: 11;
+    }
+
+    button {
+      background: rgba(255,255,255,0.1);
+      color: white;
+      border: 1px solid rgba(255,255,255,0.2);
+      padding: 8px 14px;
+      border-radius: 10px;
+      cursor: pointer;
+      font-size: 14px;
+      transition: 0.3s;
+      backdrop-filter: blur(4px);
+    }
+
+    button:hover {
+      background: rgba(255,255,255,0.3);
     }
 
     canvas {
-      border: 3px solid #00FFFF;
-      background-color: #111;
-      border-radius: 10px;
-      box-shadow: 0 0 25px rgba(0, 255, 255, 0.4);
-      margin-bottom: 20px;
-    }
-
-    .controls {
-      display: grid;
-      grid-template-columns: 60px 60px 60px;
-      justify-content: center;
-      align-items: center;
-      gap: 10px;
-    }
-
-    .controls button {
-      background: linear-gradient(145deg, #00bcd4, #007acc);
-      border: none;
-      border-radius: 10px;
-      color: white;
-      font-size: 22px;
-      padding: 10px;
-      box-shadow: 0 0 10px rgba(0,255,255,0.5);
-      cursor: pointer;
-      transition: 0.2s;
-    }
-
-    .controls button:active {
-      transform: scale(0.9);
-      background: linear-gradient(145deg, #007acc, #00bcd4);
-    }
-
-    .row {
-      display: flex;
-      justify-content: center;
-      align-items: center;
+      position: fixed;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      display: block;
+      z-index: 0;
     }
   </style>
 </head>
 <body>
+  <header>موقع ريان الرسمي</header>
 
-  <h1>🎮 موقع ريان 🎮</h1>
-  <canvas id="gc" width="400" height="400"></canvas>
-
-  <div class="controls">
-    <div></div>
-    <button id="up">⬆️</button>
-    <div></div>
-
-    <button id="left">⬅️</button>
-    <button id="down">⬇️</button>
-    <button id="right">➡️</button>
+  <div id="controls">
+    <button id="colorBtn">🎨 الألوان / مسح</button>
   </div>
 
+  <canvas id="canvas"></canvas>
+
   <script>
-    var Snake = (function () {
+    const canvas = document.getElementById("canvas");
+    const ctx = canvas.getContext("2d");
+    let width, height;
+    let particles = [];
 
-      const INITIAL_TAIL = 4;
-      var fixedTail = true;
-      var intervalID;
-      var tileCount = 10;
-      var gridSize = 400/tileCount;
+    function resize() {
+      width = canvas.width = innerWidth;
+      height = canvas.height = innerHeight;
+    }
+    window.addEventListener("resize", resize);
+    resize();
 
-      const INITIAL_PLAYER = { x: Math.floor(tileCount / 2), y: Math.floor(tileCount / 2) };
-      var velocity = { x:0, y:0 };
-      var player = { x: INITIAL_PLAYER.x, y: INITIAL_PLAYER.y };
-      var walls = false;
-      var fruit = { x:1, y:1 };
-      var trail = [];
-      var tail = INITIAL_TAIL;
-      var reward = 0;
-      var points = 0;
-      var pointsMax = 0;
-
-      var ActionEnum = { 'none':0, 'up':1, 'down':2, 'left':3, 'right':4 };
-      Object.freeze(ActionEnum);
-      var lastAction = ActionEnum.none;
-
-      function setup () {
-        canv = document.getElementById('gc');
-        ctx = canv.getContext('2d');
-        game.reset();
+    class Particle {
+      constructor(x, y, color) {
+        this.x = x;
+        this.y = y;
+        this.color = color;
+        this.size = Math.random() * 10 + 5;
+        this.life = 1;
+        this.vx = (Math.random() - 0.5) * 3;
+        this.vy = (Math.random() - 0.5) * 3;
       }
-
-      var game = {
-        reset: function () {
-          ctx.fillStyle = 'grey';
-          ctx.fillRect(0, 0, canv.width, canv.height);
-          tail = INITIAL_TAIL;
-          points = 0;
-          velocity.x = 0;
-          velocity.y = 0;
-          player.x = INITIAL_PLAYER.x;
-          player.y = INITIAL_PLAYER.y;
-          reward = -1;
-          lastAction = ActionEnum.none;
-          trail = [];
-          trail.push({ x: player.x, y: player.y });
-          this.RandomFruit();
-        },
-
-        action: {
-          up: function () { if (lastAction != ActionEnum.down){ velocity.x = 0; velocity.y = -1; } },
-          down: function () { if (lastAction != ActionEnum.up){ velocity.x = 0; velocity.y = 1; } },
-          left: function () { if (lastAction != ActionEnum.right){ velocity.x = -1; velocity.y = 0; } },
-          right: function () { if (lastAction != ActionEnum.left){ velocity.x = 1; velocity.y = 0; } }
-        },
-
-        RandomFruit: function () {
-          fruit.x = Math.floor(Math.random() * tileCount);
-          fruit.y = Math.floor(Math.random() * tileCount);
-        },
-
-        loop: function () {
-          reward = -0.1;
-          if(player.x < 0) player.x = tileCount-1;
-          if(player.x >= tileCount) player.x = 0;
-          if(player.y < 0) player.y = tileCount-1;
-          if(player.y >= tileCount) player.y = 0;
-
-          var stopped = velocity.x == 0 && velocity.y == 0;
-          player.x += velocity.x;
-          player.y += velocity.y;
-
-          if (velocity.x == 0 && velocity.y == -1) lastAction = ActionEnum.up;
-          if (velocity.x == 0 && velocity.y == 1) lastAction = ActionEnum.down;
-          if (velocity.x == -1 && velocity.y == 0) lastAction = ActionEnum.left;
-          if (velocity.x == 1 && velocity.y == 0) lastAction = ActionEnum.right;
-
-          ctx.fillStyle = 'rgba(40,40,40,0.8)';
-          ctx.fillRect(0,0,canv.width,canv.height);
-
-          if (!stopped){
-            trail.push({x:player.x, y:player.y});
-            while(trail.length > tail) trail.shift();
-          }
-
-          ctx.fillStyle = 'green';
-          for(var i=0; i<trail.length-1; i++) {
-            ctx.fillRect(trail[i].x * gridSize+1, trail[i].y * gridSize+1, gridSize-2, gridSize-2);
-            if (!stopped && trail[i].x == player.x && trail[i].y == player.y){
-              game.reset();
-            }
-            ctx.fillStyle = 'lime';
-          }
-          ctx.fillRect(trail[trail.length-1].x * gridSize+1, trail[trail.length-1].y * gridSize+1, gridSize-2, gridSize-2);
-
-          if (player.x == fruit.x && player.y == fruit.y) {
-            if(!fixedTail) tail++;
-            points++;
-            if(points > pointsMax) pointsMax = points;
-            reward = 1;
-            game.RandomFruit();
-          }
-
-          ctx.fillStyle = 'red';
-          ctx.fillRect(fruit.x * gridSize+1, fruit.y * gridSize+1, gridSize-2, gridSize-2);
-
-          ctx.fillStyle = 'white';
-          ctx.font = "bold small-caps 16px Helvetica";
-          ctx.fillText("النقاط: " + points, 280, 40);
-        }
+      update() {
+        this.x += this.vx;
+        this.y += this.vy;
+        this.life -= 0.02;
       }
-
-      function keyPush (evt) {
-        switch(evt.keyCode) {
-          case 37: game.action.left(); break;
-          case 38: game.action.up(); break;
-          case 39: game.action.right(); break;
-          case 40: game.action.down(); break;
-          case 32: Snake.pause(); break;
-          case 27: game.reset(); break;
-        }
+      draw(ctx) {
+        const grad = ctx.createRadialGradient(this.x, this.y, 0, this.x, this.y, this.size * 5);
+        grad.addColorStop(0, this.color);
+        grad.addColorStop(1, "transparent");
+        ctx.fillStyle = grad;
+        ctx.beginPath();
+        ctx.arc(this.x, this.y, this.size * 5, 0, Math.PI * 2);
+        ctx.fill();
       }
+    }
 
-      return {
-        start: function (fps = 15) {
-          window.onload = setup;
-          intervalID = setInterval(game.loop, 1000 / fps);
-        },
-        setup: {
-          keyboard: function (state) {
-            if (state) document.addEventListener('keydown', keyPush);
-            else document.removeEventListener('keydown', keyPush);
-          },
-          fixedTail: function (state) { fixedTail = state; }
-        },
-        action: function (dir) { game.action[dir](); },
-        pause: function () { velocity.x = 0; velocity.y = 0; }
-      };
-    })();
+    // مجموعات الألوان
+    const colorSets = [
+      ["#60a5fa", "#34d399", "#f87171", "#facc15", "#a78bfa", "#fb7185"],
+      ["#ff5f6d", "#ffc371", "#ff9966", "#ff3cac", "#784ba0", "#2b86c5"],
+      ["#11998e", "#38ef7d", "#56ab2f", "#a8e063", "#00b09b", "#96c93d"],
+      ["#8360c3", "#2ebf91", "#1e3c72", "#2a5298", "#6a11cb", "#2575fc"]
+    ];
+    let colors = colorSets[0];
 
-    Snake.start(8);
-    Snake.setup.keyboard(true);
-    Snake.setup.fixedTail(false);
+    function spawnParticles(x, y) {
+      for (let i = 0; i < 8; i++) {
+        const color = colors[Math.floor(Math.random() * colors.length)];
+        particles.push(new Particle(x, y, color));
+      }
+    }
 
-    // ربط الأزرار بالاتجاهات
-    document.getElementById("up").onclick = () => Snake.action("up");
-    document.getElementById("down").onclick = () => Snake.action("down");
-    document.getElementById("left").onclick = () => Snake.action("left");
-    document.getElementById("right").onclick = () => Snake.action("right");
+    document.addEventListener("mousemove", e => spawnParticles(e.clientX, e.clientY));
+    document.addEventListener("touchmove", e => {
+      const t = e.touches[0];
+      spawnParticles(t.clientX, t.clientY);
+    });
+
+    function animate() {
+      ctx.fillStyle = "rgba(11,14,26,0.2)";
+      ctx.fillRect(0, 0, width, height);
+      particles.forEach((p, i) => {
+        p.update();
+        p.draw(ctx);
+        if (p.life <= 0) particles.splice(i, 1);
+      });
+      requestAnimationFrame(animate);
+    }
+
+    animate();
+
+    // زر تغيير الألوان أو المسح
+    const btn = document.getElementById("colorBtn");
+    let colorIndex = 0;
+
+    btn.addEventListener("click", () => {
+      colorIndex = (colorIndex + 1) % colorSets.length;
+      colors = colorSets[colorIndex];
+    });
+
+    // ضغط مزدوج لمسح الشاشة
+    btn.addEventListener("dblclick", () => {
+      particles = [];
+      ctx.clearRect(0, 0, width, height);
+    });
   </script>
-
 </body>
 </html>
